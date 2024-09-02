@@ -58,7 +58,18 @@ config:
       description: Listening address for the exporter
       default: "0.0.0.0"
       type: string
-    port:
+    scrape-interval:
+      description: |
+        This option configures how often exporter updates its data and how often should Prometheus
+        scrape them. (In minutes)
+      default: 15
+      type: int
+    scrape-timeout:
+      description: |
+        How long should Prometheus wait for response to scrape request before timing out (In seconds)
+      default: 30
+      type: int
+    scrape-port:
       description: Listening port for the exporter
       default: 9117
       type: int
@@ -69,3 +80,7 @@ requires:
   juju-info:
     interface: juju-info
     scope: container
+
+provides:
+  prometheus-scrape:  # Relation with legacy "prometheus2" charm
+    interface: prometheus

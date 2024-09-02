@@ -14,6 +14,12 @@ import ipaddress
 
 import ops
 
+from interface_prometheus.operator import (
+    PrometheusConfigError,
+    PrometheusConnected,
+    PrometheusScrapeTarget,
+)
+
 # import requests_unixsocket
 
 logger = logging.getLogger(__name__)
@@ -27,6 +33,10 @@ class PrometheusNumaExporterCharm(ops.CharmBase):
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.prometheus_target = PrometheusScrapeTarget(self, "prometheus-scrape")
+        self.framework.observe(
+            self.prometheus_target.on.prometheus_available, self._on_prometheus_available
+        )
         self._snap_name = "prometheus-numa-exporter"
         self._nova_conf = "/etc/nova/nova.conf"
 
@@ -81,7 +91,7 @@ class PrometheusNumaExporterCharm(ops.CharmBase):
                 return
             self._run_cmd(["snap", "set", self._snap_name, f"address={address}"])
 
-        port = self.config.get("port")
+        port = self.config.get("scrape-port")
         if port:
             if 1 <= port <= 65535:
                 self._run_cmd(["snap", "set", self._snap_name, f"port={port}"])
@@ -107,7 +117,30 @@ class PrometheusNumaExporterCharm(ops.CharmBase):
         if nics:
             self._run_cmd(["snap", "set", self._snap_name, f"network-interfaces={nics}"])
 
+        self.reconfigure_scrape_target()
         self.unit.status = ops.ActiveStatus(f"Ready at {channel}")
+
+    def reconfigure_scrape_target(self) -> None:
+        """Update scrape target configuration in related Prometheus application.
+
+        Note: this function has no effect if there's no application related via
+        'prometheus-scrape'.
+        """
+        port = self.config["scrape-port"]
+        interval_minutes = self.config["scrape-interval"]
+        interval = interval_minutes * 60
+        timeout = self.config["scrape-timeout"]
+        try:
+            self.prometheus_target.expose_scrape_target(
+                port, "/metrics", scrape_interval=f"{interval}s", scrape_timeout=f"{timeout}s"
+            )
+        except PrometheusConfigError as exc:
+            logger.error(f"Failed to configure prometheus scrape target: {exc}")
+            raise exc
+
+    def _on_prometheus_available(self, _: PrometheusConnected) -> None:
+        """Trigger configuration of a prometheus scrape target."""
+        self.reconfigure_scrape_target()
 
     #    def _getWorkloadVersion(self):
     #        """Get the microsample workload version from the snapd API via unix-socket."""

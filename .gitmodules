@@ -1,0 +1,8 @@
+[submodule "interface_prometheus"]
+	path = interface_prometheus
+	url = https://git.launchpad.net/interface-prometheus
+	branch = operator
+[submodule "lib/interface_prometheus"]
+	path = lib/interface_prometheus
+	url = https://git.launchpad.net/interface-prometheus
+	branch = operator
